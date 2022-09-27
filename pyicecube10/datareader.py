@@ -45,12 +45,9 @@ bins_Enu_mean = (bins_Enu_max + bins_Enu_min) / 2
 Aeff = {}
 for year in years:
     if year in ('40', '59', '79', '86_I', '86_II'):
-        Aeff[year] = lambda dec: nu_area[year][np.logical_and(
-                                                              np.logical_and(nu_area[year]['Dec_nu_min[deg]'] <= dec, 
-                                                                             dec < nu_area[year]['Dec_nu_max[deg]']),
-                                                             nu_area[year]['log10(E_nu/GeV)_min'] < 9.0 ) # effective area is always 0 above
-                                              ].groupby('log10(E_nu/GeV)_min')['A_Eff[cm^2]'].apply(sum)
-        
+        Aeff[year] = lambda dec: nu_area[year].\
+            query("`Dec_nu_min[deg]` <= @dec < `Dec_nu_max[deg]` and `log10(E_nu/GeV)_min` < 9.0").\
+                groupby('log10(E_nu/GeV)_min')['A_Eff[cm^2]'].apply(sum)
     else:
         Aeff[year] = Aeff['86_II']
         
@@ -62,18 +59,27 @@ for year in years:
             s = fd.readline()
             names = s[1:].strip().split()
         smearing_raw[year] = pd.read_csv(fn, delim_whitespace=True, comment='#', names=names)
+        # TODO special treatment for southern events in early years (see first rows until 86_I)
+    
+        #fix buggy bin (will also remove abovementioned rows, but then table structure is a corrupted)
+        smearing_raw[year].query("`AngErr_min[deg]` != `AngErr_max[deg]`", inplace = True)
     else:
         smearing_raw[year] = smearing_raw['86_II']    
         
 pdf = {}
 for year in years:
     if year in ('40', '59', '79', '86_I', '86_II'):
-        def tmp(logEnu, dec, beta):
-            mask = np.logical_and(np.logical_and(
-                            np.logical_and(smearing_raw[year]['log10(E_nu/GeV)_min'] <= logEnu, logEnu < smearing_raw[year]['log10(E_nu/GeV)_max']),
-                            np.logical_and(smearing_raw[year]['Dec_nu_min[deg]'] <= dec, dec < smearing_raw[year]['Dec_nu_max[deg]'])),
-                        smearing_raw[year]['AngErr_max[deg]'] < beta)
-            pdf = smearing_raw[year][mask].groupby('log10(E/GeV)_min').aggregate({'log10(E/GeV)_max': 'mean', 'Fractional_Counts': 'sum'}).reset_index() # here we sum over PSF and AngErr below cut
+        def tmp(logEnu, dec, beta, dist):
+            if dist is None:
+                psf_corr = ""
+            else:
+                psf_corr = " and `PSF_max[deg]` < @dist"
+            pdf = smearing_raw[year].query("`log10(E_nu/GeV)_min` <= @logEnu < `log10(E_nu/GeV)_max`\
+                                            and `Dec_nu_min[deg]` <= @dec < `Dec_nu_max[deg]`\
+                                            and `AngErr_max[deg]` < @beta" + psf_corr).\
+                                                groupby('log10(E/GeV)_min').\
+                                                    aggregate({'log10(E/GeV)_max': 'mean', 'Fractional_Counts': 'sum'}).\
+                                                        reset_index()
             return pdf 
         pdf[year] = tmp
     else:
@@ -91,10 +97,10 @@ rmf = {}
 N_samples = 10000
 for year in years:
     if year in ('40', '59', '79', '86_I', '86_II'):
-        def tmp_rmf(dec, beta):
+        def tmp_rmf(dec, beta = 20, dist = None):
             rebinned_pdfs = []
             for Enu in bins_Enu_mean:
-                pdf_current = pdf[year](Enu, dec, beta)
+                pdf_current = pdf[year](Enu, dec, beta, dist)
                 prob_good = pdf_current['Fractional_Counts'].sum()
                 norm_pdf = pdf_current['Fractional_Counts'].ravel() / prob_good
                 boundaries = np.append(pdf_current['log10(E/GeV)_min'].ravel(), pdf_current['log10(E/GeV)_max'].iloc[-1])
