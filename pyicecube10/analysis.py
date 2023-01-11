@@ -5,6 +5,9 @@ from functools import cached_property, lru_cache
 import numpy as np
 from astropy.coordinates import SkyCoord
 import inspect
+from numpy.random import default_rng
+
+rng = default_rng()
 
 Enu_min, Enu_max = 10**bins_Enu_min, 10**bins_Enu_max
 Emu_min, Emu_max = 10**bins_E_min, 10**bins_E_max
@@ -18,11 +21,29 @@ energybins = dict(Enu_min = Enu_min,
                   Emu_max = Emu_max, 
                   Emu = Emu)
 
-coords = {}
-for year in events.keys():
-    coords[year] = SkyCoord(ra=events[year]['RA[deg]'],
-                            dec = events[year]['Dec[deg]'],
-                            frame='fk5', unit='deg')
+def get_dist(ra1, dec1, ra2, dec2):
+    ra1, dec1, ra2, dec2 = map(np.deg2rad, [ra1, dec1, ra2, dec2])
+
+    dra = ra2 - ra1
+    ddec = dec2 - dec1
+
+    a = np.sin(ddec/2.0)**2 + np.cos(dec1) * np.cos(dec2) * np.sin(dra/2.0)**2
+
+    return 2 * np.arcsin(np.sqrt(a)) 
+
+# coords = {}
+# for year in events.keys():
+#     coords[year] = SkyCoord(ra=events[year]['RA[deg]'],
+#                             dec = events[year]['Dec[deg]'],
+#                             frame='fk5', unit='deg')
+
+def blind():
+    global blind_events
+    blind_events = {}
+    for year in events.keys():
+        blind_events[year] = events[year].copy()
+        blind_events[year]['RA[deg]'] = rng.permutation(blind_events[year]['RA[deg]']) 
+blind()
 
 class AnalyzeCircle:
     def __init__(self, 
@@ -31,13 +52,25 @@ class AnalyzeCircle:
                  radius, 
                  beta, 
                  years=('86_I', '86_II', '86_III', '86_IV', '86_V', '86_VI', '86_VII'),
-                 back_method = 'band'):
+                 back_method = 'band',
+                 unblind = True, 
+                 reshuffle = False):
+        
+        self.events = {}
+        for year in years:
+            if unblind:
+                self.events[year] = events[year].copy()
+            else:
+                self.events[year] = blind_events[year]
+            
+            if reshuffle:
+                self.events[year]['RA[deg]'] = rng.permutation(self.events[year]['RA[deg]'])
         
         self.src_ra, self.src_dec = src_ra, src_dec # deg
         self.radius = radius # deg
         self.beta = beta # deg, quality cut
         self.years = years
-        self.src_coord = SkyCoord(ra=src_ra, dec=src_dec, frame='fk5', unit='deg')
+        #self.src_coord = SkyCoord(ra=src_ra, dec=src_dec, frame='fk5', unit='deg')
         
         self.back_method = back_method
         if back_method == 'circles':
@@ -54,44 +87,36 @@ class AnalyzeCircle:
         else:
             raise NotImplementedError('Unknown background estimation method %s' % back_method)
 
-        # # don't use lru_cache decorators, it prevents garbage collector from destroying objects
-        # # https://rednafi.github.io/reflections/dont-wrap-instance-methods-with-functoolslru_cache-decorator-in-python.html
-        # # instead:
-        # self._good_masks = lru_cache()(self.__good_masks)
-        # self._good_events = lru_cache()(self.__good_events)
-        # self._coords = lru_cache()(self.__coords)
-        # self._dist = lru_cache()(self.__dist)
-        # self.acc = lru_cache()(self._acc)
-        # self.rmf = lru_cache()(self._rmf)
-        # self.total_per_bin = lru_cache()(self._total_per_bin)
-        # self.background_per_bin = lru_cache()(self._background_per_bin)
-    
     @lru_cache
     def _good_masks(self):
         masks = {}
         for year in self.years:
-            masks[year] = events[year]['AngErr[deg]'] < self.beta
+            masks[year] = self.events[year]['AngErr[deg]'] < self.beta
         return masks
     
     @lru_cache
     def _good_events(self):
         good_events = {}
         for year in self.years:
-            good_events[year] = events[year][self._good_masks()[year]]
+            good_events[year] = self.events[year][self._good_masks()[year]]
         return good_events
     
-    @lru_cache()
-    def _coords(self):
-        c_coords = {}
-        for year in self.years:
-            c_coords[year] = coords[year][self._good_masks()[year]]
-        return c_coords
+    # @lru_cache()
+    # def _coords(self):
+    #     c_coords = {}
+    #     for year in self.years:
+    #         c_coords[year] = coords[year][self._good_masks()[year]]
+    #     return c_coords
     
     @lru_cache
     def _dist(self):
         dist = {}
         for year in self.years:
-            dist[year] = self._coords()[year].separation(self.src_coord).deg
+            dist[year] = np.rad2deg(get_dist(self._good_events()[year]['RA[deg]'], 
+                                             self._good_events()[year]['Dec[deg]'], 
+                                             self.src_ra, 
+                                             self.src_dec))
+                            #self._coords()[year].separation(self.src_coord).deg
         return dist
     
     @lru_cache
@@ -143,8 +168,12 @@ class AnalyzeCircle:
         bg = np.zeros_like(bins_E_min)
         for shift in self._background_shifts:
             for year in self.years:
-                bg_coord = SkyCoord(ra = self.src_ra + shift, dec = self.src_dec, unit='deg')
-                mask = self._coords()[year].separation(bg_coord).deg < self.radius
+                #bg_coord = SkyCoord(ra = self.src_ra + shift, dec = self.src_dec, unit='deg')
+                mask = get_dist(self.events[year]['RA[deg]'],
+                                self.events[year]['Dec[deg]'],
+                                self.src_ra + shift,
+                                self.src_dec) < np.deg2rad(self.radius)
+                                #[self._coords()[year].separation(bg_coord).deg < self.radius
                 binned = np.histogram(self._good_events()[year][mask]['log10(E/GeV)'], binning)[0]
                 bg += binned
         bg *= self.alpha_back
