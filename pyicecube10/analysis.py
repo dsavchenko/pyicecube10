@@ -31,12 +31,6 @@ def get_dist(ra1, dec1, ra2, dec2):
 
     return 2 * np.arcsin(np.sqrt(a)) 
 
-# coords = {}
-# for year in events.keys():
-#     coords[year] = SkyCoord(ra=events[year]['RA[deg]'],
-#                             dec = events[year]['Dec[deg]'],
-#                             frame='fk5', unit='deg')
-
 def blind():
     global blind_events
     blind_events = {}
@@ -70,7 +64,6 @@ class AnalyzeCircle:
         self.radius = radius # deg
         self.beta = beta # deg, quality cut
         self.years = years
-        #self.src_coord = SkyCoord(ra=src_ra, dec=src_dec, frame='fk5', unit='deg')
         
         self.back_method = back_method
         if back_method == 'circles':
@@ -101,13 +94,6 @@ class AnalyzeCircle:
             good_events[year] = self.events[year][self._good_masks()[year]]
         return good_events
     
-    # @lru_cache()
-    # def _coords(self):
-    #     c_coords = {}
-    #     for year in self.years:
-    #         c_coords[year] = coords[year][self._good_masks()[year]]
-    #     return c_coords
-    
     @lru_cache
     def _dist(self):
         dist = {}
@@ -116,7 +102,6 @@ class AnalyzeCircle:
                                              self._good_events()[year]['Dec[deg]'], 
                                              self.src_ra, 
                                              self.src_dec))
-                            #self._coords()[year].separation(self.src_coord).deg
         return dist
     
     @lru_cache
@@ -168,12 +153,10 @@ class AnalyzeCircle:
         bg = np.zeros_like(bins_E_min)
         for shift in self._background_shifts:
             for year in self.years:
-                #bg_coord = SkyCoord(ra = self.src_ra + shift, dec = self.src_dec, unit='deg')
                 mask = get_dist(self.events[year]['RA[deg]'],
                                 self.events[year]['Dec[deg]'],
                                 self.src_ra + shift,
                                 self.src_dec) < np.deg2rad(self.radius)
-                                #[self._coords()[year].separation(bg_coord).deg < self.radius
                 binned = np.histogram(self._good_events()[year][mask]['log10(E/GeV)'], binning)[0]
                 bg += binned
         bg *= self.alpha_back

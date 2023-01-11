@@ -72,9 +72,6 @@ for year in years:
         smearing_raw[year] = smearing_raw['86_II']    
 
 
-# FIXME:   YEAR INSIDE TEMP FUCTIONS ARE GLOBAL VARIABLES 
-# probably make factory function
-
 def pdf_factory(iyear):
     if iyear in ('40', '59', '79', '86_I', '86_II'):
         def tmp(logEnu, dec, beta, dist):
@@ -103,7 +100,7 @@ bins_E_mean = (bins_E_min + bins_E_max) / 2
 
 # rebinning by sampling
 def rmf_factory(jyear):
-    N_samples = 1000000
+    N_samples = 100000
     if jyear in ('40', '59', '79', '86_I', '86_II'):
         def tmp_rmf(dec, beta = 20, dist = None):
             rebinned_pdfs = []
@@ -112,7 +109,7 @@ def rmf_factory(jyear):
                 prob_good = pdf_current['Fractional_Counts'].sum()
                 norm_pdf = pdf_current['Fractional_Counts'].ravel() / prob_good
                 boundaries = np.append(pdf_current['log10(E/GeV)_min'].ravel(), pdf_current['log10(E/GeV)_max'].iloc[-1])
-                distribution = rv_histogram( (norm_pdf, boundaries) )
+                distribution = rv_histogram( (norm_pdf, boundaries), density=False )
 
                 is_good = rng.random(N_samples) < prob_good 
                 samples = distribution.rvs(size=N_samples)
@@ -122,6 +119,6 @@ def rmf_factory(jyear):
         return tmp_rmf
     else:
         return rmf_factory('86_II')
-rmf = {year: rmf_factory(year) for year in years}
+rmf = {year: lru_cache()(rmf_factory(year)) for year in years}
 rmf['6y'] = rmf['86_II']
 
