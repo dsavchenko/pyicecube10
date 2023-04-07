@@ -113,7 +113,7 @@ def rmf_factory(jyear):
 
                 is_good = rng.random(N_samples) < prob_good 
                 samples = distribution.rvs(size=N_samples)
-                samples = samples[is_good]
+                samples = samples[is_good] 
                 rebinned_pdfs.append(np.histogram(samples, np.append(bins_E_min, bins_E_max[-1]))[0] / N_samples)
             return np.stack(rebinned_pdfs).transpose()
         return tmp_rmf
@@ -121,4 +121,53 @@ def rmf_factory(jyear):
         return rmf_factory('86_II')
 rmf = {year: lru_cache()(rmf_factory(year)) for year in years}
 rmf['6y'] = rmf['86_II']
+
+
+# non-gaussian psf
+Enu_min, Enu_max = 10**bins_Enu_min, 10**bins_Enu_max
+Enu = (Enu_max + Enu_min) / 2
+
+def unnorm_plaw(gamma):
+    return Enu ** (-gamma)
+
+bins_psf_min = np.logspace(-4, 2.5, 35)[:-1]
+bins_psf_max = np.logspace(-4, 2.5, 35)[1:]
+
+def space_pdf_factory(iyear):
+    if iyear in ('40', '59', '79', '86_I', '86_II'):
+        def tmp(logEmu, dec, sigma, logEnu):
+            spdf = smearing_raw[iyear].query(" `AngErr_min[deg]` <= @sigma < `AngErr_max[deg]`\
+                                        and `Dec_nu_min[deg]` <= @dec < `Dec_nu_max[deg]`\
+                                        and `log10(E/GeV)_min` <= @logEmu < `log10(E/GeV)_max`\
+                                        and `log10(E_nu/GeV)_min` <= @logEnu < `log10(E_nu/GeV)_max` ").\
+                        groupby(["PSF_min[deg]"]).aggregate({"PSF_max[deg]": 'mean', 'Fractional_Counts': 'sum'}).reset_index()
+            spdf['Fractional_Counts'] /= spdf['Fractional_Counts'].sum() 
+            return spdf 
+        return tmp
+    else:
+        return space_pdf_factory('86_II')
+space_pdf = {year: space_pdf_factory(year) for year in years}
+
+def psf_factory(jyear):
+    N_samples = 10000
+    if jyear in ('40', '59', '79', '86_I', '86_II'):
+        def tmp_psf(logEmu, dec, sigma, gamma):
+            rebinned_psf = np.zeros(len(bins_psf_min))
+            N_total = 0
+            for logEnu, pl_weight in zip(bins_Enu_mean, (bins_Enu_max - bins_Enu_min) * aeff[jyear](dec).ravel() * unnorm_plaw(gamma)):
+                psf_current = space_pdf[jyear](logEmu, dec, sigma, logEnu)
+                if sum(psf_current['Fractional_Counts']) != 0:
+                    norm_pdf = psf_current['Fractional_Counts'].ravel()
+                    boundaries = np.append(psf_current['PSF_min[deg]'].ravel(), psf_current['PSF_max[deg]'].iloc[-1])
+                    distribution = rv_histogram( (norm_pdf, boundaries), density=False )
+                    samples = distribution.rvs(size=N_samples)
+                    weight = pl_weight  * pdf[jyear](logEnu, dec, 25, None).query("`log10(E/GeV)_min` <= @logEmu < `log10(E/GeV)_max`")['Fractional_Counts'].ravel()
+                    rebinned_psf += np.histogram(samples, np.append(bins_psf_min, bins_psf_max[-1]))[0] * weight
+                    N_total += N_samples * weight
+            return rebinned_psf / N_total / (bins_psf_max - bins_psf_min) # type: ignore
+        return tmp_psf
+    else:
+        return psf_factory('86_II')
+psf = {year: lru_cache()(psf_factory(year)) for year in years}
+psf['6y'] = psf['86_II']
 
