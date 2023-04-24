@@ -154,7 +154,7 @@ def psf_factory(jyear):
         def tmp_psf(logEmu, dec, sigma, gamma):
             rebinned_psf = np.zeros(len(bins_psf_min))
             N_total = 0
-            for logEnu, pl_weight in zip(bins_Enu_mean, (bins_Enu_max - bins_Enu_min) * aeff[jyear](dec).ravel() * unnorm_plaw(gamma)):
+            for logEnu, pl_weight in zip(bins_Enu_mean, (bins_Enu_max - bins_Enu_min) * Aeff[jyear](dec).ravel() * unnorm_plaw(gamma)):
                 psf_current = space_pdf[jyear](logEmu, dec, sigma, logEnu)
                 if sum(psf_current['Fractional_Counts']) != 0:
                     norm_pdf = psf_current['Fractional_Counts'].ravel()

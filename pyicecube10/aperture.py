@@ -45,7 +45,7 @@ class AnalyzeCircle:
                  src_dec, 
                  radius, 
                  beta, 
-                 years=('86_I', '86_II', '86_III', '86_IV', '86_V', '86_VI', '86_VII'),
+                 years=('86_I', '6y'),
                  back_method = 'band',
                  unblind = True, 
                  reshuffle = False):
