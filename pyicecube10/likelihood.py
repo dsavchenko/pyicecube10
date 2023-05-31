@@ -42,8 +42,9 @@ def space_signalness(ra, dec, sigma, ra_src, dec_src, R_src):
         return 1/(2*np.pi * (sig**2 + rsrc**2)) * np.exp( - dist**2 / (sig**2 + rsrc**2) / 2 )
 
 @lru_cache
-def powerlaw(gamma, A=1e-10):
-    return A * 1e-3 * (Enu / 1e3)**(-gamma) # TODO: normalisation now at TeV (was at 100 TeV): 1e-20 et 1e5
+def powerlaw(gamma, A=1e-10, Enorm = 1e3):
+    return A * 1e-3 * (Enu / Enorm)**(-gamma) # NOTE: normalisation now at TeV (was at 100 TeV): 1e-20 et 1e5
+                                              # NOTE: A is in 1 / (TeV cm^2 s); thats why 1e-3. Overall is GeV
 
 def blind():
     global blind_events
@@ -69,7 +70,8 @@ class LikelihoodAnalysisSinglePeriod:
                  dec_min = 0, 
                  dec_max = 90, 
                  unblind = True, 
-                 reshuffle = False):
+                 reshuffle = False,
+                 src_model = powerlaw):  # _en_signalness_factory isn't universal so other model may not work
         
         if unblind:
             self.events = events[year].copy()
@@ -90,7 +92,7 @@ class LikelihoodAnalysisSinglePeriod:
         self.dec_min = dec_min
         self.dec_max = dec_max
         self.use_pdf_cache = use_pdf_cache
-        self.src_model = powerlaw # _en_signalness_factory isn't universal so this is hardcoded
+        self.src_model = src_model
         
         self.backgroundness_func = self._backgroundness_factory()
         self.en_signalness_func = self._en_signalness_factory()
@@ -224,14 +226,16 @@ class LikelihoodAnalysisMultiPeriod:
                  dec_min = 0, 
                  dec_max = 90, 
                  unblind = True, 
-                 reshuffle=False):
+                 reshuffle=False,
+                 src_model = powerlaw):
         self.period_analysis_list = [LikelihoodAnalysisSinglePeriod(year=year, 
                                                                     angular_reconstruction_cut=angular_reconstruction_cut,
                                                                     use_pdf_cache=use_pdf_cache,
                                                                     dec_min=dec_min,
                                                                     dec_max=dec_max,
                                                                     unblind=unblind,
-                                                                    reshuffle=reshuffle) for year in years]
+                                                                    reshuffle=reshuffle,
+                                                                    src_model = src_model) for year in years]
     
     def set_src_parameters(self, *args):
         for p in self.period_analysis_list:
