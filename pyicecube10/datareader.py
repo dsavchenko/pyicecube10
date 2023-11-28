@@ -51,7 +51,7 @@ for year in years:
     if year in ('40', '59', '79', '86_I', '86_II'):
         Aeff[year] = lambda dec: nu_area[year].\
             query("`Dec_nu_min[deg]` <= @dec < `Dec_nu_max[deg]` and `log10(E_nu/GeV)_min` < 9.0").\
-                groupby('log10(E_nu/GeV)_min')['A_Eff[cm^2]'].apply(sum)
+                groupby('log10(E_nu/GeV)_min')['A_Eff[cm^2]'].apply(np.sum)
     else:
         Aeff[year] = Aeff['86_II']
 Aeff['6y'] = Aeff['86_II']
