@@ -14,7 +14,10 @@ for year in years:
         s = fd.readline()
         names = s[1:].strip().split()
     events[year] = pd.read_csv(fn, delim_whitespace=True, comment='#', names=names)
-events['6y'] = pd.concat([events[i] for i in ('86_II', '86_III', '86_IV', '86_V', '86_VI', '86_VII')]).reset_index().drop('index', axis=1)
+try:
+    events['6y'] = pd.concat([events[i] for i in ('86_II', '86_III', '86_IV', '86_V', '86_VI', '86_VII')]).reset_index().drop('index', axis=1)
+except:
+    print('some year missing. No 6y')
 
 uptime = {}
 for year in years:
