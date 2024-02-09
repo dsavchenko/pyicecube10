@@ -6,6 +6,7 @@ from scipy.stats import rv_histogram
 from numpy.random import default_rng
 rng = default_rng()
 from functools import lru_cache
+from .interpolation_functions import hist_rebin
 
 events = {}
 for year in years:
@@ -75,6 +76,8 @@ for year in years:
         smearing_raw[year] = smearing_raw['86_II']    
 
 
+bins_Emu_min = smearing_raw['86_I']['log10(E/GeV)_min'].unique()
+bins_Emu_max = smearing_raw['86_I']['log10(E/GeV)_max'].unique()
 def pdf_factory(iyear):
     if iyear in ('40', '59', '79', '86_I', '86_II'):
         def tmp(logEnu, dec, beta, dist):
@@ -122,6 +125,23 @@ def rmf_factory(jyear):
         return tmp_rmf
     else:
         return rmf_factory('86_II')
+
+
+binning = np.append(bins_E_min, max(bins_E_max))
+# rebinning by interpolation
+def rmf_factory_itp(jyear):
+    if jyear in ('40', '59', '79', '86_I', '86_II'):
+
+        def tmp_rmf(dec, beta = 20, dist = None):
+            rebinned_pdfs = []
+            for Enu in bins_Enu_mean:
+                pdf_current = pdf[jyear](Enu, dec, beta, dist)
+                rebinned_pdfs.append(hist_rebin(np.array(pdf_current), binning))
+            return np.stack(rebinned_pdfs).transpose()
+        return tmp_rmf
+    else:
+        return rmf_factory('86_II')
+
 rmf = {year: lru_cache()(rmf_factory(year)) for year in years}
 rmf['6y'] = rmf['86_II']
 
