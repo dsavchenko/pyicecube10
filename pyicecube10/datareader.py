@@ -76,8 +76,6 @@ for year in years:
         smearing_raw[year] = smearing_raw['86_II']    
 
 
-bins_Emu_min = smearing_raw['86_I']['log10(E/GeV)_min'].unique()
-bins_Emu_max = smearing_raw['86_I']['log10(E/GeV)_max'].unique()
 def pdf_factory(iyear):
     if iyear in ('40', '59', '79', '86_I', '86_II'):
         def tmp(logEnu, dec, beta, dist):
