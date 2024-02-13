@@ -138,7 +138,7 @@ def rmf_factory_itp(jyear):
             return np.stack(rebinned_pdfs).transpose()
         return tmp_rmf
     else:
-        return rmf_factory('86_II')
+        return rmf_factory_itp('86_II')
 
 rmf = {year: lru_cache()(rmf_factory(year)) for year in years}
 rmf['6y'] = rmf['86_II']
