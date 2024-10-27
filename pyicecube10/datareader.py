@@ -13,7 +13,7 @@ for year in years:
     with open(fn, 'r') as fd:
         s = fd.readline()
         names = s[1:].strip().split()
-    events[year] = pd.read_csv(fn, delim_whitespace=True, comment='#', names=names)
+    events[year] = pd.read_csv(fn, sep=r'\s+', comment='#', names=names)
 try:
     events['6y'] = pd.concat([events[i] for i in ('86_II', '86_III', '86_IV', '86_V', '86_VI', '86_VII')]).reset_index().drop('index', axis=1)
 except:
@@ -25,7 +25,7 @@ for year in years:
     with open(fn, 'r') as fd:
         s = fd.readline()
         names = s[1:].strip().split()
-    uptime[year] = pd.read_csv(fn, delim_whitespace=True, comment='#', names = names)
+    uptime[year] = pd.read_csv(fn, sep=r'\s+', comment='#', names = names)
 
 exptime = {k: sum(v['MJD_stop[days]'] - v['MJD_start[days]']) * 86400 for k, v in uptime.items()}
 exptime['6y'] = sum(v for k, v in exptime.items() if k in ('86_II', '86_III', '86_IV', '86_V', '86_VI', '86_VII') )
@@ -38,7 +38,7 @@ for year in years:
         with open(fn, 'r') as fd:
             s = fd.readline()
             names = s[1:].strip().split()
-        nu_area[year] = pd.read_csv(fn, delim_whitespace=True, comment='#', names=names)
+        nu_area[year] = pd.read_csv(fn, sep=r'\s+', comment='#', names=names)
     else:
         nu_area[year] = nu_area['86_II']
 
@@ -66,7 +66,7 @@ for year in years:
         with open(fn, 'r') as fd:
             s = fd.readline()
             names = s[1:].strip().split()
-        smearing_raw[year] = pd.read_csv(fn, delim_whitespace=True, comment='#', names=names)
+        smearing_raw[year] = pd.read_csv(fn, sep=r'\s+', comment='#', names=names)
         # TODO special treatment for southern events in early years (see first rows until 86_I)
     
         #fix buggy bin (will also remove abovementioned rows, but then table structure is a corrupted)
@@ -110,8 +110,10 @@ def rmf_factory(jyear):
             for Enu in bins_Enu_mean:
                 pdf_current = pdf[jyear](Enu, dec, beta, dist)
                 prob_good = pdf_current['Fractional_Counts'].sum()
-                norm_pdf = pdf_current['Fractional_Counts'].ravel() / prob_good
-                boundaries = np.append(pdf_current['log10(E/GeV)_min'].ravel(), pdf_current['log10(E/GeV)_max'].iloc[-1])
+                norm_pdf = pdf_current['Fractional_Counts'].to_numpy() / prob_good
+                boundaries = np.append(
+                    pdf_current['log10(E/GeV)_min'].to_numpy(), 
+                    pdf_current['log10(E/GeV)_max'].iloc[-1])
                 distribution = rv_histogram( (norm_pdf, boundaries), density=False )
 
                 is_good = rng.random(N_samples) < prob_good 
