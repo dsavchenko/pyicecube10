@@ -125,7 +125,7 @@ class LikelihoodAnalysisSinglePeriod:
         return rmf[self.year](dec, self.angular_reconstruction_cut, None)
     
     def acc(self, dec):
-        return (Enu_max - Enu_min) * Aeff[self.year](dec).ravel() * exptime[self.year]
+        return (Enu_max - Enu_min) * Aeff[self.year](dec).to_numpy() * exptime[self.year]
     
     def count_spec(self, dec, *args):
         flux = self.src_model(*args)

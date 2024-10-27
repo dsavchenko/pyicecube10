@@ -108,7 +108,7 @@ class AnalyzeCircle:
     def acc(self):
         acc = {}
         for year in self.years:
-            acc[year] = (Enu_max - Enu_min) * Aeff[year](self.src_dec).ravel() * exptime[year] 
+            acc[year] = (Enu_max - Enu_min) * Aeff[year](self.src_dec).to_numpy() * exptime[year] 
         return acc
     
     @lru_cache
